@@ -4,3 +4,4 @@ gunicorn==21.2.0
 cryptography==42.0.2
 numpy==1.26.4
 opencv-python-headless==4.9.0.80
+Flask-Mail==0.9.1
