@@ -40,14 +40,14 @@ db_config = {
 }
 def get_db_connection():
     try:
-        # Gunakan host publik Railway agar tidak timeout/tertahan jaringan internal
         connection = mysql.connector.connect(
             host=os.environ.get('MYSQLHOST', 'shuttle.proxy.rlwy.net'),
             user=os.environ.get('MYSQLUSER', 'root'),
             password=os.environ.get('MYSQLPASSWORD'),
             database=os.environ.get('MYSQLDATABASE', 'monpay_db'),
             port=int(os.environ.get('MYSQLPORT', 38481)),
-            connection_timeout=10
+            ssl_disabled=True,
+            connection_timeout=15
         )
         return connection
     except Error as e:
