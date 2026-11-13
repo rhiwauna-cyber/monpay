@@ -40,24 +40,15 @@ db_config = {
 }
 def get_db_connection():
     try:
-        # Cek apakah aplikasi berjalan di Railway atau lokal
-        if 'MYSQLHOST' in os.environ:
-            connection = mysql.connector.connect(
-                host=os.environ.get('MYSQLHOST'),
-                user=os.environ.get('MYSQLUSER'),
-                password=os.environ.get('MYSQLPASSWORD'),
-                database=os.environ.get('MYSQLDATABASE'),
-                port=int(os.environ.get('MYSQLPORT', 3306))
-            )
-        else:
-            # Konfigurasi lokal XAMPP kamu
-            connection = mysql.connector.connect(
-                host='localhost',
-                user='root',
-                password='',
-                database='monpay_db',
-                port=3306
-            )
+        # Gunakan host publik Railway agar tidak timeout/tertahan jaringan internal
+        connection = mysql.connector.connect(
+            host=os.environ.get('MYSQLHOST', 'shuttle.proxy.rlwy.net'),
+            user=os.environ.get('MYSQLUSER', 'root'),
+            password=os.environ.get('MYSQLPASSWORD'),
+            database=os.environ.get('MYSQLDATABASE', 'monpay_db'),
+            port=int(os.environ.get('MYSQLPORT', 38481)),
+            connection_timeout=10
+        )
         return connection
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
