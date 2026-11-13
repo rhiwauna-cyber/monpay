@@ -34,8 +34,8 @@ mail = Mail(app)
 db_config = {
     'host': os.environ.get('MYSQLHOST', 'localhost'),
     'user': os.environ.get('MYSQLUSER', 'root'),
-    'password': os.environ.get('MYSQL_ROOT_PASSWORD', os.environ.get('MYSQLPASSWORD', '')),
-    'database': os.environ.get('MYSQL_DATABASE', os.environ.get('MYSQLDATABASE', 'monpay_db')),
+    'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_ROOT_PASSWORD', ''),
+    'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'monpay_db'),
     'port': int(os.environ.get('MYSQLPORT', 3306))
 }
 
@@ -396,6 +396,3 @@ def api_send_otp():
     except Exception as e:
         print(f"Gagal kirim email: {e}")
         return jsonify({'status': 'error', 'message': f'Gagal mengirim email: {str(e)}'}), 500
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
