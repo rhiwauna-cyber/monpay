@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MonPay Ledger - Login & 2FA</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+  </head>
+  <body class="login-body">
+    <div class="login-card">
+      <h2>MonPay Ledger</h2>
+      <p>Sistem Informasi & Manajemen Transaksi</p>
+
+      <!-- FORM TAHAP 1: LOGIN -->
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">Username / Email</label>
+          <input
+            type="text"
+            id="username"
+            placeholder="Masukkan username"
+            required
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            type="password"
+            id="password"
+            placeholder="Masukkan password"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn-login">Masuk ke Sistem</button>
+      </form>
+
+      <!-- FORM TAHAP 2: 2FA OTP (MUNCUL OTOMATIS PAS PASSWORD BENAR) -->
+      <form id="otpForm" style="display: none; margin-top: 20px">
+        <div class="form-group">
+          <label for="otpInput">Kode OTP (Cek Terminal VS Code)</label>
+          <input
+            type="text"
+            id="otpInput"
+            placeholder="Masukkan 6 digit OTP"
+            maxlength="6"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          class="btn-login"
+          style="background-color: #28a745"
+        >
+          Verifikasi OTP 2FA
+        </button>
+      </form>
+
+      <p id="error-msg" style="color: red; margin-top: 10px; display: none"></p>
+    </div>
+
+    <script>
+      let currentUsername = "";
+
+      // Handle Form Login (Tahap 1)
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+          const username = document.getElementById("username").value;
+          const password = document.getElementById("password").value;
+          const errMsg = document.getElementById("error-msg");
+          errMsg.style.display = "none";
+
+          fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "require_otp") {
+                currentUsername = data.username;
+                // Sembunyikan form login, munculkan form OTP
+                document.getElementById("loginForm").style.display = "none";
+                document.getElementById("otpForm").style.display = "block";
+                alert("Password Benar! Masukkan kode OTP 2FA.");
+              } else if (data.status === "error") {
+                errMsg.textContent = data.message;
+                errMsg.style.display = "block";
+              }
+            });
+        });
+
+      // Handle Form OTP (Tahap 2)
+      document
+        .getElementById("otpForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+          const otp = document.getElementById("otpInput").value;
+          const errMsg = document.getElementById("error-msg");
+          errMsg.style.display = "none";
+
+          fetch("/api/verify-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: currentUsername, otp: otp }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "success") {
+                // DIARAHKAN KE HALAMAN FACE ID TERLEBIH DAHULU SEBELUM MASUK DASHBOARD
+                window.location.href = "/face-id";
+              } else {
+                errMsg.textContent = data.message;
+                errMsg.style.display = "block";
+              }
+            });
+        });
+    </script>
+  </body>
+</html>

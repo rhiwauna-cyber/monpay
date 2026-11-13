@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MonPay Ledger - Next-Gen Banking System</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="/static/js/chart.min.js"></script>
+  </head>
+  <body>
+    <!-- MAIN APP DASHBOARD -->
+    <div id="app-screen" class="screen-container">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo-icon">M</div>
+          <h2>MonPay</h2>
+        </div>
+
+        <nav class="menu">
+          <button class="menu-item active" onclick="switchTab('dashboard')">
+            <i>📊</i> Dashboard
+          </button>
+          <button class="menu-item" onclick="switchTab('transfer')">
+            <i>💸</i> Transfer
+          </button>
+          <button class="menu-item" onclick="switchTab('ewallet')">
+            <i>📱</i> Top Up E-Wallet
+          </button>
+          <button class="menu-item" onclick="switchTab('bills')">
+            <i>⚡</i> Tagihan & Token
+          </button>
+          <button class="menu-item" onclick="switchTab('qris')">
+            <i>📷</i> QRIS Pay
+          </button>
+          <button class="menu-item" onclick="switchTab('history')">
+            <i>📜</i> Riwayat Transaksi
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <button onclick="handleLogout()" class="btn-logout">
+            Logout System
+          </button>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT AREA -->
+      <main class="main-content">
+        <!-- HEADER -->
+        <header class="top-header">
+          <div>
+            <h1 id="welcome-text">Selamat Datang, -</h1>
+            <p class="text-muted">
+              No. Rekening: <span id="acc-number">-</span>
+            </p>
+          </div>
+          <div class="user-badge">
+            <span class="status-dot"></span> Core System Active
+          </div>
+        </header>
+
+        <!-- TAB 1: DASHBOARD MONITORING -->
+        <section id="tab-dashboard" class="tab-page">
+          <div class="cards-grid">
+            <div class="card balance-card">
+              <h3>Total Saldo Ledger</h3>
+              <h2 id="total-balance">Rp 10.000.000</h2>
+              <div class="card-footer">
+                <span>Status: Verified Active</span>
+                <span>Encrypted Core</span>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <h3>Monitoring Transaksi</h3>
+              <div class="stat-group">
+                <div>
+                  <small>Pengeluaran</small>
+                  <p id="total-out" class="text-danger">Rp 0</p>
+                </div>
+                <div>
+                  <small>Pemasukan</small>
+                  <p id="total-in" class="text-success">Rp 0</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ANALYTICS MONITORING CHART -->
+          <div class="card chart-card">
+            <h3>Analytics Monitoring Flow</h3>
+            <div class="chart-wrapper">
+              <canvas id="analyticsChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 2: TRANSFER -->
+        <section id="tab-transfer" class="tab-page hidden">
+          <div class="card form-card">
+            <h2>Transfer Dana Financial</h2>
+            <form id="form-transfer">
+              <div class="input-group">
+                <label>Tipe Transfer</label>
+                <select id="tf-type">
+                  <option value="Sesama MonPay">Sesama MonPay Ledger</option>
+                  <option value="Bank Mandiri">Bank Mandiri</option>
+                  <option value="Bank BCA">Bank BCA</option>
+                  <option value="Bank BRI">Bank BRI</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Nomor Rekening / Username Tujuan</label>
+                <input
+                  type="text"
+                  id="tf-target"
+                  placeholder="12345678/Nama Rekening"
+                  required
+                />
+              </div>
+              <div class="input-group">
+                <label>Nominal (Rp)</label>
+                <input type="number" id="tf-amount" placeholder="0" required />
+              </div>
+              <button type="submit" class="btn-primary">
+                Kirim Transfer Sekarang
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- TAB 3: TOP UP E-WALLET -->
+        <section id="tab-ewallet" class="tab-page hidden">
+          <div class="card form-card">
+            <h2>Top Up E-Wallet & Digital Money</h2>
+            <form id="form-ewallet">
+              <div class="input-group">
+                <label>Pilih Penyedia E-Wallet</label>
+                <select id="ewallet-provider">
+                  <option value="GoPay">GoPay</option>
+                  <option value="DANA">DANA</option>
+                  <option value="OVO">OVO</option>
+                  <option value="ShopeePay">ShopeePay</option>
+                  <option value="LinkAja">LinkAja</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Nomor HP / ID Akun E-Wallet</label>
+                <input
+                  type="text"
+                  id="ewallet-target"
+                  placeholder="Contoh: 081234567890"
+                  required
+                />
+              </div>
+              <div class="input-group">
+                <label>Nominal Top Up (Rp)</label>
+                <input
+                  type="number"
+                  id="ewallet-amount"
+                  placeholder="Minimal 10.000"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn-primary">
+                Proses Top Up Sekarang
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- TAB 4: TOKEN & UTILITY -->
+        <section id="tab-bills" class="tab-page hidden">
+          <div class="card form-card">
+            <h2>Pembelian Token PLN & Pulsa</h2>
+            <form id="form-bills">
+              <div class="input-group">
+                <label>Layanan Utility</label>
+                <select id="bill-type">
+                  <option value="Token PLN">Token Listrik PLN</option>
+                  <option value="Pulsa Telkomsel">Pulsa Telkomsel</option>
+                  <option value="Pulsa Indosat">Pulsa Indosat</option>
+                  <option value="Paket Data">Paket Data Internet</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>ID Pelanggan / Nomor HP</label>
+                <input
+                  type="text"
+                  id="bill-target"
+                  placeholder="Contoh: 54120938471"
+                  required
+                />
+              </div>
+              <div class="input-group">
+                <label>Nominal Pembelian</label>
+                <select id="bill-amount">
+                  <option value="20000">Rp 20.000</option>
+                  <option value="50000">Rp 50.000</option>
+                  <option value="100000">Rp 100.000</option>
+                  <option value="500000">Rp 500.000</option>
+                </select>
+              </div>
+              <button type="submit" class="btn-primary">Bayar & Beli</button>
+            </form>
+          </div>
+        </section>
+
+        <!-- TAB 5: QRIS SCANNER SIMULATOR -->
+        <section id="tab-qris" class="tab-page hidden">
+          <div class="card form-card text-center">
+            <h2>QRIS Merchant Scanner</h2>
+            <p class="text-muted">
+              Simulasi Pembayaran QRIS Standar Bank Indonesia
+            </p>
+            <div class="qris-box">
+              <img
+                src="/static/images/Qris.svg"
+                alt="Qris Code"
+                style="
+                  width: 200px;
+                  height: 200px;
+                  margin: 15px auto;
+                  display: block;
+                  background: #ffffff;
+                  padding: 10px;
+                  border-radius: 12px;
+                "
+              />
+            </div>
+            <form id="form-qris">
+              <div class="input-group">
+                <label>Nama Merchant</label>
+                <input
+                  type="text"
+                  id="qris-merchant"
+                  value="Monpay - Store"
+                  readonly
+                />
+              </div>
+              <div class="input-group">
+                <label>Nominal Tagihan (Rp)</label>
+                <input
+                  type="number"
+                  id="qris-amount"
+                  placeholder="0"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn-primary">
+                Proses Pembayaran QRIS
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- TAB 6: RIWAYAT TRANSAKSI -->
+        <section id="tab-history" class="tab-page hidden">
+          <div class="card">
+            <h2>Riwayat Transaksi Core Ledger</h2>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>Kategori</th>
+                    <th>Deskripsi</th>
+                    <th>Tujuan/Sumber</th>
+                    <th>Nominal</th>
+                  </tr>
+                </thead>
+                <tbody id="history-rows">
+                  <!-- Dynamic Render via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+  </body>
+</html>

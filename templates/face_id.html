@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MonPay - Verifikasi Biometrik Wajah</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body
+    style="
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: #0f172a;
+      color: white;
+      font-family: &quot;Plus Jakarta Sans&quot;, sans-serif;
+    "
+  >
+    <div
+      class="card form-card"
+      style="
+        text-align: center;
+        width: 420px;
+        padding: 30px;
+        background: #1e293b;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      "
+    >
+      <h2 style="margin-bottom: 8px">Verifikasi Biometrik Wajah</h2>
+      <p
+        id="status-text"
+        style="font-size: 14px; margin-bottom: 20px; color: #94a3b8"
+      >
+        Menghubungkan ke kamera...
+      </p>
+
+      <div
+        style="
+          position: relative;
+          width: 300px;
+          height: 225px;
+          margin: 0 auto 20px auto;
+          border-radius: 12px;
+          overflow: hidden;
+          border: 2px solid #00c6ff;
+        "
+      >
+        <video
+          id="webcam"
+          autoplay
+          muted
+          playsinline
+          width="300"
+          height="225"
+          style="object-fit: cover; transform: scaleX(-1)"
+        ></video>
+        <canvas
+          id="canvas"
+          width="300"
+          height="225"
+          style="display: none"
+        ></canvas>
+      </div>
+
+      <!-- Tombol Utama Verifikasi (Selalu Muncul untuk Pemilik/Pengunjung) -->
+      <button
+        id="btn-verify"
+        style="
+          width: 100%;
+          padding: 12px;
+          background: #00c6ff;
+          border: none;
+          border-radius: 8px;
+          font-weight: bold;
+          cursor: pointer;
+          color: #0f172a;
+          margin-bottom: 10px;
+        "
+      >
+        Verifikasi Wajah Saya
+      </button>
+
+      <!-- Tombol Pendaftaran disembunyikan secara default, hanya muncul otomatis jika belum pernah daftar -->
+      <button
+        id="btn-register"
+        style="
+          display: none;
+          width: 100%;
+          padding: 8px;
+          background: transparent;
+          border: 1px solid #475569;
+          border-radius: 8px;
+          font-size: 12px;
+          cursor: pointer;
+          color: #94a3b8;
+        "
+      >
+        Daftarkan Wajah Pemilik (Setup Awal)
+      </button>
+    </div>
+
+    <script>
+      const video = document.getElementById("webcam");
+      const canvas = document.getElementById("canvas");
+      const statusText = document.getElementById("status-text");
+      const btnVerify = document.getElementById("btn-verify");
+      const btnRegister = document.getElementById("btn-register");
+
+      async function startCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 300, height: 225 },
+          });
+          video.srcObject = stream;
+          statusText.innerText = "Kamera siap. Posisikan wajah di tengah.";
+          statusText.style.color = "#22c55e";
+        } catch (err) {
+          statusText.innerText = "Gagal mengakses kamera!";
+          statusText.style.color = "#ef4444";
+        }
+      }
+
+      function sendFaceData(actionType) {
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, 300, 225);
+        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+
+        btnVerify.disabled = true;
+        btnRegister.disabled = true;
+        statusText.innerText = "Memproses biometrik di server...";
+        statusText.style.color = "#38bdf8";
+
+        fetch("/process-face-id", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: actionType, image: imageData }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              statusText.innerText = data.message;
+              statusText.style.color = "#22c55e";
+              setTimeout(() => {
+                window.location.href = data.redirect;
+              }, 1000);
+            } else {
+              // Jika server mendeteksi belum ada model wajah sama sekali, otomatis tampilkan tombol daftar
+              if (data.need_registration) {
+                btnRegister.style.display = "block";
+              }
+              statusText.innerText = data.message;
+              statusText.style.color = "#ef4444";
+              btnVerify.disabled = false;
+              btnRegister.disabled = false;
+            }
+          })
+          .catch((err) => {
+            console.error(err);
+            statusText.innerText = "Terjadi kesalahan pada server.";
+            statusText.style.color = "#ef4444";
+            btnVerify.disabled = false;
+            btnRegister.disabled = false;
+          });
+      }
+
+      btnVerify.addEventListener("click", () => sendFaceData("verify"));
+      btnRegister.addEventListener("click", () => {
+        if (confirm("Daftarkan wajah Anda sebagai pemilik akun ini?")) {
+          sendFaceData("register");
+        }
+      });
+
+      window.addEventListener("DOMContentLoaded", startCamera);
+    </script>
+  </body>
+</html>
