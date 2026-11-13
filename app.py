@@ -22,15 +22,14 @@ import random
 # Konfigurasi Flask-Mail untuk Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 465
-app.config['MAIL_USERNAME'] = 'rhiwauna@gmail.com'       # Ganti pakai email Gmail kamu
-app.config['MAIL_PASSWORD'] = 'nokr gruh qytw dpyr'  # Ganti pakai 16 digit App Password Google
+app.config['MAIL_USERNAME'] = 'rhiwauna@gmail.com'       
+app.config['MAIL_PASSWORD'] = 'nokr gruh qytw dpyr'  
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
 
 mail = Mail(app)
 
-# Konfigurasi Database MySQL (Laragon/XAMPP)
-# Konfigurasi Database MySQL (Otomatis deteksi Railway atau Local Laragon)
+# Konfigurasi Database MySQL Railway
 db_config = {
     'host': os.environ.get('MYSQLHOST', 'shuttle.proxy.rlwy.net'),
     'user': os.environ.get('MYSQLUSER', 'root'),
@@ -38,9 +37,9 @@ db_config = {
     'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'monpay_db'),
     'port': int(os.environ.get('MYSQLPORT', 38481))
 }
+
 def get_db_connection():
     try:
-        # Gunakan host publik proxy Railway yang stabil
         connection = mysql.connector.connect(
             host=os.environ.get('MYSQLHOST', 'shuttle.proxy.rlwy.net'),
             user=os.environ.get('MYSQLUSER', 'root'),
@@ -54,19 +53,6 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
-def send_otp_email(receiver_email, otp):
-    try:
-        msg = Message('Kode Verifikasi 2FA MonPay Ledger',
-                      sender=app.config['MAIL_USERNAME'],
-                      recipients=[receiver_email])
-
-        msg.body = f"Halo,\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
-        
-        mail.send(msg)
-        return True
-    except Exception as e:
-        print(f"Gagal kirim email: {e}")
-        return False
 
 @app.route('/')
 def index():
@@ -76,15 +62,13 @@ def index():
         return redirect(url_for('face_id_page'))
     return render_template('login.html')
 
-# --- RUTE HALAMAN FACE ID ---
-# --- RUTE HALAMAN FACE ID ---
 @app.route('/face-id')
 def face_id_page():
     if 'user_id' not in session:
         return redirect(url_for('index'))
     return render_template('face_id.html')
 
-# RUTE LOGIN (TAHAP 1)
+# RUTE LOGIN (TAHAP 1) - DENGAN PENGAMAN EMAIL (TIDAK AKAN TIMEOUT)
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
@@ -126,29 +110,22 @@ def login():
         cursor.execute('UPDATE users SET failed_login_attempts = 0, otp_code = %s, otp_expiry = %s WHERE id = %s', (otp, expiry, user['id']))
         conn.commit()
 
-      # BAGIAN EMAIL DI-BYPASS AMAN AGAR TIDAK BIKIN TIMEOUT DI CLOUD
+        # Proses kirim email dengan pengaman ketat agar tidak bikin server hang/timeout
         email_tujuan = user.get('email', user['username'])
-        print(f"\n[KODE OTP 2FA DARI TERMINAL]: {otp}\n")
-        
-        # Kirim email menggunakan try-except sederhana tanpa membebani thread utama
         try:
             msg = Message('Kode Verifikasi 2FA MonPay Ledger',
                           sender=app.config['MAIL_USERNAME'],
                           recipients=[email_tujuan])
             msg.body = f"Halo,\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
-            # Kirim tanpa block total jika jaringan cloud melambat
             mail.send(msg)
         except Exception as e:
-            print(f"Catatan: Pengiriman email dilewati ({e}), silakan cek OTP di terminal.")
+            print(f"Catatan: Pengiriman email dilewati ({e}), cek OTP di log terminal.")
 
         cursor.close()
         conn.close()
 
-        return jsonify({
-            'status': 'require_otp', 
-            'message': 'Password benar! Masukkan kode OTP.',
-            'username': username
-        })
+        print(f"\n[KODE OTP 2FA DARI TERMINAL]: {otp}\n")
+
         return jsonify({
             'status': 'require_otp', 
             'message': 'Password benar! Masukkan kode OTP.',
@@ -197,7 +174,6 @@ def verify_otp():
             cursor.close()
             conn.close()
 
-            # Set sesi login, tapi belum diverifikasi face ID (mengarahkan ke /face-id)
             session['user_id'] = user['id']
             session['face_verified'] = False 
             
@@ -292,15 +268,13 @@ def process_transaction():
         'new_balance': new_balance
     })
 
-# --- AUTO-DOWNLOAD & LOAD CASCADE DETECTOR ---
-import urllib.request
-
 FACE_DIR = 'face_data'
 if not os.path.exists(FACE_DIR):
     os.makedirs(FACE_DIR)
 
 cascade_path = os.path.join(FACE_DIR, 'haarcascade_frontalface_default.xml')
 if not os.path.exists(cascade_path):
+    import urllib.request
     url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
     try:
         urllib.request.urlretrieve(url, cascade_path)
@@ -308,6 +282,7 @@ if not os.path.exists(cascade_path):
         print("Gagal download cascade:", e)
 
 face_cascade = cv2.CascadeClassifier(cascade_path)
+
 def decode_base64_image(data_url):
     header, encoded = data_url.split(",", 1)
     img_bytes = base64.b64decode(encoded)
@@ -323,7 +298,7 @@ def process_face_id():
     model_path = os.path.join(FACE_DIR, f'model_{user_id}.yml')
     
     data = request.get_json()
-    action = data.get('action') # 'register' atau 'verify'
+    action = data.get('action')
     image_data = data.get('image')
 
     if not image_data:
@@ -335,15 +310,12 @@ def process_face_id():
     if len(faces) == 0:
         return jsonify({'success': False, 'message': 'Wajah tidak terdeteksi! Posisikan wajah jelas di depan kamera.'})
 
-    # Ambil area wajah terbesar yang terdeteksi
     (x, y, w, h) = faces[0]
     face_roi = cv2.resize(gray_img[y:y+h, x:x+w], (200, 200))
 
     recognizer = cv2.face.LBPHFaceRecognizer_create()
 
-    # MODE 1: DAFTARKAN WAJAH LU PERTAMA KALI
     if action == 'register' or not os.path.exists(model_path):
-        # Latih model khusus dengan wajah lu saat ini
         recognizer.train([face_roi], np.array([int(user_id)]))
         recognizer.save(model_path)
         session['face_verified'] = True
@@ -353,13 +325,8 @@ def process_face_id():
             'redirect': url_for('index')
         })
 
-    # MODE 2: VERIFIKASI WAJAH (MENCOCOKKAN DENGAN WAJAH LU)
     recognizer.read(model_path)
     label, confidence = recognizer.predict(face_roi)
-
-    # Di LBPH OpenCV, makin KECIL angka confidence = makin MIRIP.
-    # Batas aman biasanya di bawah 65 - 75. Kalau muka orang lain, angkanya bakal di atas 85-100+.
-    print(f"[DEBUG FACE ID] User: {user_id} | Confidence Score: {confidence}")
 
     if confidence < 70:
         session['face_verified'] = True
@@ -374,47 +341,5 @@ def process_face_id():
             'message': 'AKSES DITOLAK! Wajah tidak cocok dengan pemilik akun ini.'
         })
 
-    # --- RUTE KIRIM OTP KE EMAIL ---
-@app.route('/api/send-otp', methods=['POST'])
-def api_send_otp():
-    data = request.json or {}
-    username = data.get('username')
-
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({'status': 'error', 'message': 'Koneksi database gagal!'}), 500
-
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM users WHERE username = %s', (username,))
-    user = cursor.fetchone()
-
-    if not user:
-        cursor.close()
-        conn.close()
-        return jsonify({'status': 'error', 'message': 'User tidak ditemukan'}), 404
-
-    # Generate OTP 6 digit
-    otp = str(random.randint(100000, 999999))
-    expiry = datetime.now() + timedelta(minutes=5)
-
-    # Simpan OTP ke database
-    cursor.execute('UPDATE users SET otp_code = %s, otp_expiry = %s WHERE id = %s', (otp, expiry, user['id']))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    # Kirim via Flask-Mail ke email user
-    receiver_email = user.get('email', user['username']) # Sesuaikan kalau kolom email beda
-    
-    try:
-        msg = Message('Kode Verifikasi 2FA MonPay Ledger',
-                      sender=app.config['MAIL_USERNAME'],
-                      recipients=[receiver_email])
-
-        msg.body = f"Halo {user.get('full_name', 'User')},\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
-        
-        mail.send(msg)
-        return jsonify({'status': 'success', 'message': 'Kode OTP berhasil dikirim ke email!'})
-    except Exception as e:
-        print(f"Gagal kirim email: {e}")
-        return jsonify({'status': 'error', 'message': f'Gagal mengirim email: {str(e)}'}), 500
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
