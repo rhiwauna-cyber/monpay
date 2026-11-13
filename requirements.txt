@@ -1,7 +1,8 @@
 Flask==3.0.2
+Flask-Mail==0.9.1
 mysql-connector-python==8.3.0
-gunicorn==21.2.0
-cryptography==42.0.2
+Werkzeug==3.0.1
 numpy==1.26.4
 opencv-python-headless==4.9.0.80
-Flask-Mail==0.9.1
+opencv-contrib-python-headless==4.9.0.80
+gunicorn==21.2.0
