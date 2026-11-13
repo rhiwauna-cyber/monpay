@@ -32,13 +32,12 @@ mail = Mail(app)
 # Konfigurasi Database MySQL (Laragon/XAMPP)
 # Konfigurasi Database MySQL (Otomatis deteksi Railway atau Local Laragon)
 db_config = {
-    'host': os.environ.get('MYSQLHOST', 'localhost'),
+    'host': os.environ.get('MYSQLHOST', 'shuttle.proxy.rlwy.net'),
     'user': os.environ.get('MYSQLUSER', 'root'),
     'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_ROOT_PASSWORD', ''),
     'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'monpay_db'),
-    'port': int(os.environ.get('MYSQLPORT', 3306))
+    'port': int(os.environ.get('MYSQLPORT', 38481))
 }
-
 def get_db_connection():
     try:
         connection = mysql.connector.connect(
