@@ -40,13 +40,15 @@ db_config = {
 }
 def get_db_connection():
     try:
+        # Gunakan jalur internal Railway agar langsung tembus tanpa proxy timeout
         connection = mysql.connector.connect(
             host=os.environ.get('MYSQLHOST', 'mysql.railway.internal'),
             user=os.environ.get('MYSQLUSER', 'root'),
             password=os.environ.get('MYSQLPASSWORD'),
             database=os.environ.get('MYSQLDATABASE', 'monpay_db'),
             port=int(os.environ.get('MYSQLPORT', 3306)),
-            ssl_disabled=True
+            ssl_disabled=True,
+            connection_timeout=10
         )
         return connection
     except Error as e:
