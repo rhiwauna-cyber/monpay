@@ -126,8 +126,14 @@ def login():
         cursor.execute('UPDATE users SET failed_login_attempts = 0, otp_code = %s, otp_expiry = %s WHERE id = %s', (otp, expiry, user['id']))
         conn.commit()
 
+        # email_tujuan = user.get('email', user['username'])
+        # send_otp_email(email_tujuan, otp)
         email_tujuan = user.get('email', user['username'])
-        send_otp_email(email_tujuan, otp)
+        try:
+            # Kirim email tapi pakai timeout/try agar tidak bikin server hang jika diblokir cloud
+            send_otp_email(email_tujuan, otp)
+        except Exception as e:
+            print(f"Gagal kirim email (lanjut via terminal): {e}")
         
         cursor.close()
         conn.close()
