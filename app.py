@@ -41,10 +41,10 @@ db_config = {
 def get_db_connection():
     try:
         connection = mysql.connector.connect(
-            host=os.environ.get('MYSQLHOST', 'localhost'),
+            host=os.environ.get('MYSQLHOST', 'mysql.railway.internal'),
             user=os.environ.get('MYSQLUSER', 'root'),
-            password=os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_ROOT_PASSWORD', ''),
-            database=os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'monpay_db'),
+            password=os.environ.get('MYSQLPASSWORD'),
+            database=os.environ.get('MYSQLDATABASE', 'monpay_db'),
             port=int(os.environ.get('MYSQLPORT', 3306))
         )
         return connection
