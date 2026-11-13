@@ -40,13 +40,13 @@ db_config = {
 }
 def get_db_connection():
     try:
-        # Gunakan jalur internal Railway agar langsung tembus tanpa proxy timeout
+        # Gunakan host publik proxy Railway yang stabil
         connection = mysql.connector.connect(
-            host=os.environ.get('MYSQLHOST', 'mysql.railway.internal'),
+            host=os.environ.get('MYSQLHOST', 'shuttle.proxy.rlwy.net'),
             user=os.environ.get('MYSQLUSER', 'root'),
             password=os.environ.get('MYSQLPASSWORD'),
             database=os.environ.get('MYSQLDATABASE', 'monpay_db'),
-            port=int(os.environ.get('MYSQLPORT', 3306)),
+            port=int(os.environ.get('MYSQLPORT', 38481)),
             ssl_disabled=True,
             connection_timeout=10
         )
@@ -54,7 +54,6 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
-
 def send_otp_email(receiver_email, otp):
     try:
         msg = Message('Kode Verifikasi 2FA MonPay Ledger',
