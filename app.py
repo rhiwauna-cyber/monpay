@@ -41,7 +41,13 @@ db_config = {
 
 def get_db_connection():
     try:
-        connection = mysql.connector.connect(**db_config)
+        connection = mysql.connector.connect(
+            host=os.environ.get('MYSQLHOST', 'localhost'),
+            user=os.environ.get('MYSQLUSER', 'root'),
+            password=os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_ROOT_PASSWORD', ''),
+            database=os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'monpay_db'),
+            port=int(os.environ.get('MYSQLPORT', 3306))
+        )
         return connection
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
