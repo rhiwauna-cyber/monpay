@@ -84,7 +84,7 @@ def face_id_page():
         return redirect(url_for('index'))
     return render_template('face_id.html')
 
-# RUTE LOGIN (TAHAP 1)
+# RUTE LOGIN (TAHAP 1) - BERSIH TOTAL TANPA BLOKING EKSTERNAL
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
@@ -125,30 +125,13 @@ def login():
 
         cursor.execute('UPDATE users SET failed_login_attempts = 0, otp_code = %s, otp_expiry = %s WHERE id = %s', (otp, expiry, user['id']))
         conn.commit()
-
-      # BAGIAN EMAIL DI-BYPASS AMAN AGAR TIDAK BIKIN TIMEOUT DI CLOUD
-        email_tujuan = user.get('email', user['username'])
-        print(f"\n[KODE OTP 2FA DARI TERMINAL]: {otp}\n")
         
-        # Kirim email menggunakan try-except sederhana tanpa membebani thread utama
-        try:
-            msg = Message('Kode Verifikasi 2FA MonPay Ledger',
-                          sender=app.config['MAIL_USERNAME'],
-                          recipients=[email_tujuan])
-            msg.body = f"Halo,\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
-            # Kirim tanpa block total jika jaringan cloud melambat
-            mail.send(msg)
-        except Exception as e:
-            print(f"Catatan: Pengiriman email dilewati ({e}), silakan cek OTP di terminal.")
-
         cursor.close()
         conn.close()
 
-        return jsonify({
-            'status': 'require_otp', 
-            'message': 'Password benar! Masukkan kode OTP.',
-            'username': username
-        })
+        # Cetak OTP ke log Railway agar bisa langsung dilihat
+        print(f"\n[KODE OTP 2FA DARI TERMINAL]: {otp}\n", flush=True)
+
         return jsonify({
             'status': 'require_otp', 
             'message': 'Password benar! Masukkan kode OTP.',
@@ -169,7 +152,6 @@ def login():
             conn.close()
             sisa = 3 - attempts
             return jsonify({'status': 'error', 'message': f'Password salah! Sisa kesempatan {sisa} kali.'}), 401
-
 # RUTE VERIFIKASI OTP (TAHAP 2)
 @app.route('/api/verify-otp', methods=['POST'])
 def verify_otp():
