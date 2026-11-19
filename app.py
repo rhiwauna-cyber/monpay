@@ -18,6 +18,7 @@ app.secret_key = 'monpay_super_secret_key_yang_sangat_aman_dan_panjang'
 
 from flask_mail import Mail, Message
 import random
+import threading
 
 # Konfigurasi Flask-Mail untuk Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -26,6 +27,7 @@ app.config['MAIL_USERNAME'] = 'rhiwauna@gmail.com'       # Ganti pakai email Gma
 app.config['MAIL_PASSWORD'] = 'nokr gruh qytw dpyr'  # Ganti pakai 16 digit App Password Google
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
+app.config['MAIL_TIMEOUT'] = 10
 
 mail = Mail(app)
 
@@ -84,6 +86,14 @@ def face_id_page():
         return redirect(url_for('index'))
     return render_template('face_id.html')
 
+def send_async_email(flask_app, msg):
+    with flask_app.app_context():
+        try:
+            mail.send(msg)
+            print("[INFO 2FA] Email OTP berhasil dikirim ke Gmail.", flush=True)
+        except Exception as e:
+            print(f"[INFO 2FA] Gagal kirim email via SMTP ({e}), gunakan OTP di Deploy Logs.", flush=True)
+
 # RUTE LOGIN (TAHAP 1) - BERSIH TOTAL TANPA BLOKING EKSTERNAL
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -123,17 +133,36 @@ def login():
         otp = str(random.randint(100000, 999999))
         expiry = datetime.now() + timedelta(minutes=5)
 
-        cursor.execute('UPDATE users SET failed_login_attempts = 0, otp_code = %s, otp_expiry = %s WHERE id = %s', (otp, expiry, user['id']))
+        cursor.execute(
+            'UPDATE users SET failed_login_attempts = 0, otp_code = %s, otp_expiry = %s WHERE id = %s',
+            (otp, expiry, user['id'])
+        )
         conn.commit()
-        
+
         cursor.close()
         conn.close()
 
-        # Cetak OTP ke log Railway agar bisa langsung dilihat
         print(f"\n[KODE OTP 2FA DARI TERMINAL]: {otp}\n", flush=True)
 
+        email_tujuan = user.get('email') or app.config['MAIL_USERNAME']
+        try:
+            msg = Message(
+                'Kode Verifikasi 2FA MonPay Ledger',
+                sender=app.config['MAIL_USERNAME'],
+                recipients=[email_tujuan]
+            )
+            msg.body = (
+                f"Halo,\n\n"
+                f"Kode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\n"
+                f"Kode ini berlaku selama 5 menit.\n\n"
+                f"Salam,\nMonPay Security Team"
+            )
+            threading.Thread(target=send_async_email, args=(app, msg), daemon=True).start()
+        except Exception as e:
+            print(f"[INFO 2FA] Gagal menyiapkan thread email: {e}", flush=True)
+
         return jsonify({
-            'status': 'require_otp', 
+            'status': 'require_otp',
             'message': 'Password benar! Masukkan kode OTP.',
             'username': username
         })
