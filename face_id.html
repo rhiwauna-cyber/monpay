@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MonPay - Verifikasi Biometrik Wajah</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .face-id-page {
+        min-height: 100vh;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        background: radial-gradient(circle at top, #13294b 0%, #0b1322 65%);
+        color: #e2e8f0;
+        font-family: "Plus Jakarta Sans", sans-serif;
+      }
+
+      .face-card {
+        width: 100%;
+        max-width: 430px;
+        padding: 28px 26px;
+        text-align: center;
+        background: rgba(15, 25, 42, 0.94);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        border-radius: 20px;
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55);
+      }
+
+      .face-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        margin-bottom: 14px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #7dd3fc;
+        background: rgba(56, 189, 248, 0.12);
+        border: 1px solid rgba(56, 189, 248, 0.28);
+        border-radius: 999px;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #38bdf8;
+      }
+
+      .status-dot.ready {
+        background: #34d399;
+      }
+
+      .status-dot.error {
+        background: #f87171;
+      }
+
+      .face-title {
+        margin: 0 0 8px;
+        font-size: 22px;
+        font-weight: 700;
+        color: #f8fafc;
+      }
+
+      .face-status {
+        margin: 0 0 18px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #94a3b8;
+        min-height: 20px;
+      }
+
+      .camera-wrapper {
+        position: relative;
+        width: 320px;
+        max-width: 100%;
+        height: 240px;
+        margin: 0 auto 12px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 2px solid #38bdf8;
+        background: #070d18;
+      }
+
+      .camera-wrapper video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1);
+        display: block;
+      }
+
+      .face-guide {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 135px;
+        height: 170px;
+        transform: translate(-50%, -50%);
+        border: 2px dashed rgba(52, 211, 153, 0.75);
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      .camera-hint {
+        margin: 0 0 18px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #94a3b8;
+      }
+
+      .action-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .btn-primary-face {
+        width: 100%;
+        padding: 12px 14px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+        color: #061322;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .btn-primary-face:hover:not(:disabled) {
+        filter: brightness(1.06);
+      }
+
+      .btn-secondary-face {
+        width: 100%;
+        padding: 11px 14px;
+        border: 1px solid rgba(52, 211, 153, 0.45);
+        border-radius: 10px;
+        background: rgba(52, 211, 153, 0.1);
+        color: #6ee7b7;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .btn-secondary-face:hover:not(:disabled) {
+        background: rgba(52, 211, 153, 0.18);
+      }
+
+      .face-id-page button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body class="face-id-page">
+    <main class="face-card">
+      <div class="face-badge">
+        <span class="status-dot" id="status-dot"></span>
+        <span>Biometric Security Layer</span>
+      </div>
+
+      <h2 class="face-title">Verifikasi Biometrik Wajah</h2>
+      <p id="status-text" class="face-status">Menghubungkan ke kamera...</p>
+
+      <div class="camera-wrapper">
+        <video
+          id="webcam"
+          autoplay
+          muted
+          playsinline
+          width="320"
+          height="240"
+        ></video>
+        <div class="face-guide" aria-hidden="true"></div>
+        <canvas
+          id="canvas"
+          width="320"
+          height="240"
+          style="display: none"
+        ></canvas>
+      </div>
+
+      <p class="camera-hint">
+        Pastikan wajah menghadap lurus ke kamera dengan cahaya cukup dan merata.
+      </p>
+
+      <div class="action-stack">
+        <button id="btn-verify" type="button" class="btn-primary-face">
+          Verifikasi Wajah Saya
+        </button>
+
+        <button id="btn-register" type="button" class="btn-secondary-face">
+          Daftar / Perbarui Wajah
+        </button>
+      </div>
+    </main>
+
+    <script>
+      const video = document.getElementById("webcam");
+      const canvas = document.getElementById("canvas");
+      const statusText = document.getElementById("status-text");
+      const statusDot = document.getElementById("status-dot");
+      const btnVerify = document.getElementById("btn-verify");
+      const btnRegister = document.getElementById("btn-register");
+
+      function setControlsDisabled(disabled) {
+        btnVerify.disabled = disabled;
+        btnRegister.disabled = disabled;
+      }
+
+      function setStatus(message, state) {
+        statusText.innerText = message;
+        statusDot.className = "status-dot";
+
+        if (state === "ready") {
+          statusText.style.color = "#34d399";
+          statusDot.classList.add("ready");
+        } else if (state === "error") {
+          statusText.style.color = "#f87171";
+          statusDot.classList.add("error");
+        } else if (state === "loading") {
+          statusText.style.color = "#7dd3fc";
+        } else {
+          statusText.style.color = "#94a3b8";
+        }
+      }
+
+      async function startCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 320, height: 240, facingMode: "user" },
+            audio: false,
+          });
+          video.srcObject = stream;
+          setStatus(
+            "Kamera siap. Posisikan wajah di dalam lingkaran.",
+            "ready",
+          );
+        } catch (err) {
+          setStatus(
+            "Gagal mengakses kamera. Izinkan akses kamera di browser.",
+            "error",
+          );
+        }
+      }
+
+      function sendFaceData(actionType) {
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+
+        setControlsDisabled(true);
+        setStatus(
+          actionType === "register"
+            ? "Mendaftarkan wajah baru ke sistem..."
+            : "Memverifikasi kecocokan wajah...",
+          "loading",
+        );
+
+        fetch("/process-face-id", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: actionType, image: imageData }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              setStatus(data.message, "ready");
+              setTimeout(() => {
+                window.location.href = data.redirect || "/";
+              }, 900);
+            } else {
+              if (data.need_registration) {
+                btnRegister.focus();
+              }
+              setStatus(data.message || "Verifikasi wajah gagal.", "error");
+              setControlsDisabled(false);
+            }
+          })
+          .catch((err) => {
+            console.error(err);
+            setStatus("Terjadi kesalahan pada server.", "error");
+            setControlsDisabled(false);
+          });
+      }
+
+      btnVerify.addEventListener("click", () => sendFaceData("verify"));
+
+      btnRegister.addEventListener("click", () => {
+        const confirmed = confirm(
+          "Daftarkan atau perbarui data wajah Anda untuk akun ini?",
+        );
+        if (confirmed) {
+          sendFaceData("register");
+        }
+      });
+
+      window.addEventListener("DOMContentLoaded", startCamera);
+    </script>
+  </body>
+</html>
