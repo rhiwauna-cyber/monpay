@@ -12,26 +12,25 @@ import os
 import cv2
 import base64
 import numpy as np
+import threading
+import urllib.request
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = 'monpay_super_secret_key_yang_sangat_aman_dan_panjang'
 
 from flask_mail import Mail, Message
-import random
-import threading
 
-# Konfigurasi Flask-Mail untuk Gmail
+# Konfigurasi Flask-Mail untuk Gmail (Port 587 TLS)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USERNAME'] = 'rhiwauna@gmail.com'       # Ganti pakai email Gmail kamu
-app.config['MAIL_PASSWORD'] = 'nokr gruh qytw dpyr'  # Ganti pakai 16 digit App Password Google
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USE_SSL'] = True
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'rhiwauna@gmail.com'
+app.config['MAIL_PASSWORD'] = 'nokr gruh qytw dpyr'
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_TIMEOUT'] = 10
 
 mail = Mail(app)
 
-# Konfigurasi Database MySQL (Laragon/XAMPP)
 # Konfigurasi Database MySQL (Otomatis deteksi Railway atau Local Laragon)
 db_config = {
     'host': os.environ.get('MYSQLHOST', 'shuttle.proxy.rlwy.net'),
@@ -40,6 +39,7 @@ db_config = {
     'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE', 'monpay_db'),
     'port': int(os.environ.get('MYSQLPORT', 38481))
 }
+
 def get_db_connection():
     try:
         # Paksakan pakai host publik proxy Railway, abaikan variabel internal yang bikin hang
@@ -56,6 +56,15 @@ def get_db_connection():
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
         return None
+
+def send_async_email(flask_app, msg):
+    with flask_app.app_context():
+        try:
+            mail.send(msg)
+            print("[INFO 2FA] Email OTP berhasil dikirim ke Gmail.", flush=True)
+        except Exception as e:
+            print(f"[INFO 2FA] Gagal kirim email via SMTP ({e}), gunakan OTP di Deploy Logs.", flush=True)
+
 def send_otp_email(receiver_email, otp):
     try:
         msg = Message('Kode Verifikasi 2FA MonPay Ledger',
@@ -63,8 +72,7 @@ def send_otp_email(receiver_email, otp):
                       recipients=[receiver_email])
 
         msg.body = f"Halo,\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
-        
-        mail.send(msg)
+        threading.Thread(target=send_async_email, args=(app, msg), daemon=True).start()
         return True
     except Exception as e:
         print(f"Gagal kirim email: {e}")
@@ -79,20 +87,11 @@ def index():
     return render_template('login.html')
 
 # --- RUTE HALAMAN FACE ID ---
-# --- RUTE HALAMAN FACE ID ---
 @app.route('/face-id')
 def face_id_page():
     if 'user_id' not in session:
         return redirect(url_for('index'))
     return render_template('face_id.html')
-
-def send_async_email(flask_app, msg):
-    with flask_app.app_context():
-        try:
-            mail.send(msg)
-            print("[INFO 2FA] Email OTP berhasil dikirim ke Gmail.", flush=True)
-        except Exception as e:
-            print(f"[INFO 2FA] Gagal kirim email via SMTP ({e}), gunakan OTP di Deploy Logs.", flush=True)
 
 # RUTE LOGIN (TAHAP 1) - BERSIH TOTAL TANPA BLOKING EKSTERNAL
 @app.route('/api/login', methods=['POST'])
@@ -181,6 +180,7 @@ def login():
             conn.close()
             sisa = 3 - attempts
             return jsonify({'status': 'error', 'message': f'Password salah! Sisa kesempatan {sisa} kali.'}), 401
+
 # RUTE VERIFIKASI OTP (TAHAP 2)
 @app.route('/api/verify-otp', methods=['POST'])
 def verify_otp():
@@ -304,8 +304,6 @@ def process_transaction():
     })
 
 # --- AUTO-DOWNLOAD & LOAD CASCADE DETECTOR ---
-import urllib.request
-
 FACE_DIR = 'face_data'
 if not os.path.exists(FACE_DIR):
     os.makedirs(FACE_DIR)
@@ -319,6 +317,7 @@ if not os.path.exists(cascade_path):
         print("Gagal download cascade:", e)
 
 face_cascade = cv2.CascadeClassifier(cascade_path)
+
 def decode_base64_image(data_url):
     header, encoded = data_url.split(",", 1)
     img_bytes = base64.b64decode(encoded)
@@ -385,7 +384,7 @@ def process_face_id():
             'message': 'AKSES DITOLAK! Wajah tidak cocok dengan pemilik akun ini.'
         })
 
-    # --- RUTE KIRIM OTP KE EMAIL ---
+# --- RUTE KIRIM OTP KE EMAIL ---
 @app.route('/api/send-otp', methods=['POST'])
 def api_send_otp():
     data = request.json or {}
@@ -404,18 +403,15 @@ def api_send_otp():
         conn.close()
         return jsonify({'status': 'error', 'message': 'User tidak ditemukan'}), 404
 
-    # Generate OTP 6 digit
     otp = str(random.randint(100000, 999999))
     expiry = datetime.now() + timedelta(minutes=5)
 
-    # Simpan OTP ke database
     cursor.execute('UPDATE users SET otp_code = %s, otp_expiry = %s WHERE id = %s', (otp, expiry, user['id']))
     conn.commit()
     cursor.close()
     conn.close()
 
-    # Kirim via Flask-Mail ke email user
-    receiver_email = user.get('email', user['username']) # Sesuaikan kalau kolom email beda
+    receiver_email = user.get('email') or app.config['MAIL_USERNAME']
     
     try:
         msg = Message('Kode Verifikasi 2FA MonPay Ledger',
@@ -424,8 +420,11 @@ def api_send_otp():
 
         msg.body = f"Halo {user.get('full_name', 'User')},\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
         
-        mail.send(msg)
-        return jsonify({'status': 'success', 'message': 'Kode OTP berhasil dikirim ke email!'})
+        threading.Thread(target=send_async_email, args=(app, msg), daemon=True).start()
+        return jsonify({'status': 'success', 'message': 'Kode OTP sedang dikirim ke email!'})
     except Exception as e:
         print(f"Gagal kirim email: {e}")
         return jsonify({'status': 'error', 'message': f'Gagal mengirim email: {str(e)}'}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
