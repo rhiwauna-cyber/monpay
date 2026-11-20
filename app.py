@@ -1,7 +1,4 @@
 import random
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import mysql.connector
 from mysql.connector import Error
@@ -14,22 +11,14 @@ import base64
 import numpy as np
 import threading
 import urllib.request
+import requests
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = 'monpay_super_secret_key_yang_sangat_aman_dan_panjang'
 
-from flask_mail import Mail, Message
-
-# Konfigurasi Flask-Mail untuk Gmail (Port 587 TLS)
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = 'rhiwauna@gmail.com'
-app.config['MAIL_PASSWORD'] = 'nokr gruh qytw dpyr'
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_TIMEOUT'] = 10
-
-mail = Mail(app)
+# Konfigurasi Brevo Transactional Email API via Environment Variables Railway
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'rhiwauna@gmail.com')
 
 # Konfigurasi Database MySQL (Otomatis deteksi Railway atau Local Laragon)
 db_config = {
@@ -57,22 +46,62 @@ def get_db_connection():
         print(f"Error connecting to MySQL: {e}")
         return None
 
-def send_async_email(flask_app, msg):
-    with flask_app.app_context():
-        try:
-            mail.send(msg)
-            print("[INFO 2FA] Email OTP berhasil dikirim ke Gmail.", flush=True)
-        except Exception as e:
-            print(f"[INFO 2FA] Gagal kirim email via SMTP ({e}), gunakan OTP di Deploy Logs.", flush=True)
+def send_otp_brevo_sync(receiver_email, otp, full_name='User'):
+    # Ambil nilai terbaru dari environment agar perubahan variabel langsung terbaca
+    api_key = os.environ.get('BREVO_API_KEY') or BREVO_API_KEY
+    sender = os.environ.get('SENDER_EMAIL') or SENDER_EMAIL
 
-def send_otp_email(receiver_email, otp):
+    if not api_key:
+        print("[INFO 2FA] BREVO_API_KEY belum diset di environment.", flush=True)
+        return False
+
+    # Kirim lewat HTTPS API Brevo untuk menghindari blokir port SMTP di cloud hosting
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    payload = {
+        "sender": {
+            "name": "MonPay Security",
+            "email": sender
+        },
+        "to": [
+            {
+                "email": receiver_email
+            }
+        ],
+        "subject": f"Kode Verifikasi 2FA MonPay Ledger: {otp}",
+        "textContent": (
+            f"Halo {full_name},\n\n"
+            f"Kode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\n"
+            f"Kode ini berlaku selama 5 menit.\n\n"
+            f"Salam,\nMonPay Security Team"
+        )
+    }
+
     try:
-        msg = Message('Kode Verifikasi 2FA MonPay Ledger',
-                      sender=app.config['MAIL_USERNAME'],
-                      recipients=[receiver_email])
+        # Batasi timeout agar request HTTP tidak menggantung bila jaringan sedang lambat
+        res = requests.post(url, json=payload, headers=headers, timeout=10)
+        if res.status_code in (200, 201, 202):
+            print(f"[INFO 2FA] Email OTP berhasil dikirim ke {receiver_email} via Brevo.", flush=True)
+            return True
+        else:
+            print(f"[INFO 2FA] Brevo API gagal ({res.status_code}): {res.text}", flush=True)
+            return False
+    except Exception as e:
+        print(f"[INFO 2FA] Gagal kirim email via Brevo ({e}), gunakan OTP di Deploy Logs.", flush=True)
+        return False
 
-        msg.body = f"Halo,\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
-        threading.Thread(target=send_async_email, args=(app, msg), daemon=True).start()
+def send_otp_email(receiver_email, otp, full_name='User'):
+    try:
+        # Jalankan pengiriman di daemon thread agar respons API ke pengguna tetap cepat
+        threading.Thread(
+            target=send_otp_brevo_sync,
+            args=(receiver_email, otp, full_name),
+            daemon=True
+        ).start()
         return True
     except Exception as e:
         print(f"Gagal kirim email: {e}")
@@ -143,22 +172,8 @@ def login():
 
         print(f"\n[KODE OTP 2FA DARI TERMINAL]: {otp}\n", flush=True)
 
-        email_tujuan = user.get('email') or app.config['MAIL_USERNAME']
-        try:
-            msg = Message(
-                'Kode Verifikasi 2FA MonPay Ledger',
-                sender=app.config['MAIL_USERNAME'],
-                recipients=[email_tujuan]
-            )
-            msg.body = (
-                f"Halo,\n\n"
-                f"Kode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\n"
-                f"Kode ini berlaku selama 5 menit.\n\n"
-                f"Salam,\nMonPay Security Team"
-            )
-            threading.Thread(target=send_async_email, args=(app, msg), daemon=True).start()
-        except Exception as e:
-            print(f"[INFO 2FA] Gagal menyiapkan thread email: {e}", flush=True)
+        email_tujuan = user.get('email') or SENDER_EMAIL
+        send_otp_email(email_tujuan, otp, user.get('full_name', 'User'))
 
         return jsonify({
             'status': 'require_otp',
@@ -411,16 +426,10 @@ def api_send_otp():
     cursor.close()
     conn.close()
 
-    receiver_email = user.get('email') or app.config['MAIL_USERNAME']
-    
-    try:
-        msg = Message('Kode Verifikasi 2FA MonPay Ledger',
-                      sender=app.config['MAIL_USERNAME'],
-                      recipients=[receiver_email])
+    receiver_email = user.get('email') or SENDER_EMAIL
 
-        msg.body = f"Halo {user.get('full_name', 'User')},\n\nKode verifikasi Two-Factor Authentication (2FA) MonPay Anda adalah: {otp}\n\nKode ini berlaku selama 5 menit.\n\nSalam,\nMonPay Security Team"
-        
-        threading.Thread(target=send_async_email, args=(app, msg), daemon=True).start()
+    try:
+        send_otp_email(receiver_email, otp, user.get('full_name', 'User'))
         return jsonify({'status': 'success', 'message': 'Kode OTP sedang dikirim ke email!'})
     except Exception as e:
         print(f"Gagal kirim email: {e}")
